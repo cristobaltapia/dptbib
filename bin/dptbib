@@ -25,28 +25,13 @@ def do_sync_notes(dbsync):
     """Sync notes from dpt-rp1"""
     dbsync.sync_notes()
 
+def do_sync_annotations(dbsync):
+    """Sync annotations from dpt-rp1"""
+    dbsync.sync_annotated_docs()
 
 def do_del_group(dbsync, group):
     """Delete files from dpt-rp1 corresponding to a given group"""
     pass
-
-
-def doc_has_note(dbsync, doc):
-    """Check if document has an associated note"""
-    pass
-
-
-def _is_modified(dbsync, doc):
-    """Check whether a document has been modified"""
-    pass
-
-
-def note_modified(dbsync, doc):
-    return _is_modified(dbsync, doc)
-
-
-def doc_modified(dbsync, doc):
-    return _is_modified(dbsync, doc)
 
 
 if __name__ == "__main__":
@@ -61,9 +46,9 @@ if __name__ == "__main__":
 
     COMMANDS = {
         "push": do_push_file,
-        "pull": do_pull_file,
+        "pull-annotations": do_pull_file,
         "push-group": do_push_group,
-        "notes": do_sync_notes,
+        "sync-notes": do_sync_notes,
     }
 
     def build_parser():
