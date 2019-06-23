@@ -63,7 +63,8 @@ class DPTBibSync(object):
         self._config = config
         self._bib_path = None
         self._bib_db = self._open_bib_db(self._bibfile)
-        self._sync_path = PurePath(config["Notes"]["folder"])
+        self._notes_path = PurePath(config["Notes"]["folder"])
+        self._annot_path = PurePath(config["Annotations"]["folder"])
 
     def push_file_to_dpt(self, bibkey):
         """Push file given a bibkey"""
@@ -86,16 +87,15 @@ class DPTBibSync(object):
 
     def sync_notes(self):
         """Sync the notes from the DPT-RP1 to the computer"""
-        ensure_dir(self._sync_path)
+        ensure_dir(self._notes_path)
 
         all_notes = self._get_modified_notes(which="notes")
 
         for doc in all_notes:
-            year = dateparser.parse(doc["created_date"]).year
-            f_name = doc["entry_name"]
-            ensure_dir(self._sync_path / str(year))
-            local_path = self._sync_path / str(year) / f_name
+            local_path = self._get_local_note_path(doc)
+
             data = self._dpt.download(doc["entry_path"])
+
             with open(local_path, "wb") as f:
                 f.write(data)
 
@@ -107,7 +107,17 @@ class DPTBibSync(object):
         with_notes : bool, optional
 
         """
-        pass
+        ensure_dir(self._annot_path)
+
+        all_docs = self._get_annotated_docs_and_notes()
+
+        for doc in all_docs:
+            local_path = self._get_local_annotation_path(doc)
+
+            data = self._dpt.download(doc["entry_path"])
+
+            with open(local_path, "wb") as f:
+                f.write(data)
 
     def _open_bib_db(self, bibfile):
         """Open the bibtex database"""
@@ -172,6 +182,26 @@ class DPTBibSync(object):
 
         return PurePath(out_name + ".pdf")
 
+    def _get_local_annotation_path(self, doc):
+        year = dateparser.parse(doc["created_date"]).year
+        f_name = doc["entry_name"]
+
+        ensure_dir(self._annot_path / str(year))
+
+        local_path = self._annot_path / str(year) / f_name
+
+        return local_path
+
+    def _get_local_note_path(self, doc):
+        year = dateparser.parse(doc["created_date"]).year
+        f_name = doc["entry_name"]
+
+        ensure_dir(self._notes_path / str(year))
+
+        local_path = self._notes_path / str(year) / f_name
+
+        return local_path
+
     def _get_doc_from_bibkey(self, bibkey):
         """Get the location of the pdf file, given the bibkey
 
@@ -220,7 +250,7 @@ class DPTBibSync(object):
         all_docs = self._dpt.list_documents()
         notes_ = [d for d in all_docs if d["document_type"] == "note"]
 
-        notes = [n for n in notes_ if self._is_modified_note(n)]
+        notes = [n for n in notes_ if self._is_modified(n)]
 
         if which == "notes":
             notes = self._get_standalone_notes()
@@ -229,13 +259,35 @@ class DPTBibSync(object):
 
         return notes
 
-    def _get_annotated_docs(self):
+    def _get_annotated_docs_and_notes(self):
         all_docs = self._dpt.list_documents()
+
         docs_ = [d for d in all_docs if d["document_type"] == "normal"]
+        notes_ = [d for d in all_docs if d["document_type"] == "note"]
+
+        pat = re.compile(".*(?=_Note\.pdf)")
+        notes = [n for n in notes_ if re.search(pat, n["entry_name"])]
 
         docs = [d for d in docs_ if self._is_annotated_doc(d)]
 
-        return docs
+        doc_note = list()
+
+        for n_i in notes_:
+            for d_i in docs:
+                if self._has_note(d_i, [n_i]):
+                    doc_note.append(d_i)
+                    doc_note.append(n_i)
+                    try:
+                        docs.remove(d_i)
+                    except Exception:
+                        pass
+                    break
+
+        docs += doc_note
+
+        mod_docs = [d for d in docs if self._is_modified(d, "doc")]
+
+        return mod_docs
 
     def _get_documents(self):
         all_docs = self._dpt.list_documents()
@@ -243,20 +295,21 @@ class DPTBibSync(object):
 
         return notes
 
-    def _is_modified_note(self, doc):
+    def _is_modified(self, doc, kind="note"):
         year = dateparser.parse(doc["created_date"]).year
 
-        if doc["document_type"] == "note":
-            local_path = (
-                self._sync_path / str(year) / os.path.basename(doc["entry_path"])
+        if kind == "note":
+            local_path = self._get_local_annotation_path(doc)
+        elif kind == "doc":
+            local_path = self._get_local_note_path(doc)
+
+        if not os.path.exists(local_path):
+            return True
+        else:
+            return (
+                os.path.getmtime(local_path)
+                < dateparser.parse(doc["modified_date"]).timestamp()
             )
-            if not os.path.exists(local_path):
-                return True
-            else:
-                return (
-                    os.path.getmtime(local_path)
-                    < dateparser.parse(doc["modified_date"]).timestamp()
-                )
 
     def _is_annotated_doc(self, doc):
         created = dateparser.parse(doc["created_date"])
@@ -284,6 +337,18 @@ class DPTBibSync(object):
         notes = [n for n in docs if os.path.dirname(n["entry_path"]) != "Document/Note"]
 
         return notes
+
+    def _has_note(self, doc, notes):
+        doc_name = re.compile(doc["entry_name"][:-4])
+
+        notes_names = [
+            n["entry_name"] for n in notes if re.search(doc_name, n["entry_name"])
+        ]
+
+        if len(notes_names) > 0:
+            return True
+        else:
+            return False
 
 
 def get_config_file(config=CONFIG_FILE):
@@ -315,6 +380,7 @@ def init_config_file():
     }
     config["Bibfiles"] = {"default": ""}
     config["Notes"] = {"folder": ""}
+    config["Annotations"] = {"folder": ""}
 
     with open(CONFIG_FILE, "w") as configfile:
         config.write(configfile)

@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     COMMANDS = {
         "push": do_push_file,
-        "pull-annotations": do_pull_file,
+        "sync-annotations": do_sync_annotations,
         "push-group": do_push_group,
         "sync-notes": do_sync_notes,
     }
