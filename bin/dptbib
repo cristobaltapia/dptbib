@@ -1,0 +1,98 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import configparser
+import os.path
+
+from dptbib.bib_utils import connect_to_dpt, get_config_file, push_file_to_dpt
+
+
+def do_push_file(d, bib_name, bibkey):
+    """Push file given a bibkey"""
+    bibfile = CONFIG["Bibfiles"][bib_name]
+    push_file_to_dpt(d, bibfile, bibkey, bib_name)
+
+
+def do_pull_file(d, bibfile, bibkey):
+    """Pull file given a bibkey"""
+    pass
+
+
+def do_push_group(d, bibfile, group):
+    """Push files corresponfing to a group"""
+    pass
+
+
+def do_sync_notes(d, config):
+    """Sync notes from dpt-rp1"""
+    pass
+
+
+def do_del_group(d, config, bibfile, group):
+    """Delete files from dpt-rp1 corresponding to a given group"""
+    pass
+
+
+def doc_has_note(d, doc):
+    """Check if document has an associated note"""
+    pass
+
+
+def _is_modified(d, doc):
+    """Check whether a document has been modified"""
+    pass
+
+
+def note_modified(d, doc):
+    return _is_modified(d, doc)
+
+
+def doc_modified(d, doc):
+    return _is_modified(d, doc)
+
+
+if __name__ == "__main__":
+    import argparse
+
+    # Get user configurations
+    CONFIG = get_config_file()
+
+    DPT_ID = CONFIG["Device"]["id"]
+    DPT_KEY = CONFIG["Device"]["key"]
+    DPT_ADDR = CONFIG["Device"]["address"]
+
+    COMMANDS = {
+        "push": do_push_file,
+        "pull": do_pull_file,
+        "push-group": do_push_group,
+        "notes": do_sync_notes,
+    }
+
+    def build_parser():
+        pars = argparse.ArgumentParser(
+            description="Bibfile integration for Sony DPT-RP1"
+        )
+        pars.add_argument("--bibfile", help="Bibfile to be used")
+        pars.add_argument(
+            "command", help="Command to run", choices=sorted(COMMANDS.keys())
+        )
+        pars.add_argument("command_args", help="Arguments for the command", nargs="*")
+
+        return pars
+
+    ARGS = build_parser().parse_args()
+
+    if ARGS.bibfile:
+        BIB_NAME = ARGS.bibfile
+    else:
+        BIB_NAME = "default"
+
+    try:
+        DPT = connect_to_dpt(DPT_ADDR, DPT_ID, DPT_KEY)
+
+    except OSError:
+        print(
+            "Unable to reach device, verify it is connected to the same network segment."
+        )
+        exit(1)
+
+    COMMANDS[ARGS.command](DPT, BIB_NAME, *ARGS.command_args)
