@@ -23,7 +23,7 @@ def do_push_group(dbsync, group):
 
 def do_sync_notes(dbsync):
     """Sync notes from dpt-rp1"""
-    pass
+    dbsync.sync_notes()
 
 
 def do_del_group(dbsync, group):
@@ -85,8 +85,6 @@ if __name__ == "__main__":
     else:
         BIB_NAME = "default"
 
-    BIB_FILE = CONFIG["Bibfiles"][BIB_NAME]
-
     try:
         DPT = connect_to_dpt(DPT_ADDR, DPT_ID, DPT_KEY)
 
@@ -96,6 +94,6 @@ if __name__ == "__main__":
         )
         exit(1)
 
-    DPT_BIB_SYNC = DPTBibSync(DPT, BIB_NAME, BIB_FILE)
+    DPT_BIB_SYNC = DPTBibSync(DPT, BIB_NAME, CONFIG)
 
     COMMANDS[ARGS.command](DPT_BIB_SYNC, *ARGS.command_args)

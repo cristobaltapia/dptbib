@@ -10,6 +10,7 @@ from pathlib import Path, PurePath
 import bibtexparser
 import dateparser
 from bibtexparser.bparser import BibTexParser
+
 from dptrp1.dptrp1 import DigitalPaper
 
 HOME = Path.home()
@@ -42,36 +43,27 @@ OUT_DEF = {
 
 class DPTBibSync(object):
 
-    """Docstring for DPTbibSync. """
+    """
+    Class to syncronize the documents listed in a *bib-file with the DPT-RP1
 
-    def __init__(self, dpt, bibname, bibfile):
-        """TODO: to be defined1.
+    Parameters
+    ----------
+    dpt : `obj`:DigitalPaper
+    bibname: str
+        ID of the used bibliography file
+    config : `obj`:
+        Configuration file
 
-        Parameters
-        ----------
-        dpt : TODO
-        bibname: TODO
-        bibfile : TODO
+    """
 
-
-        """
+    def __init__(self, dpt, bibname, config):
         self._dpt = dpt
         self._bibname = bibname
-        self._bibfile = bibfile
+        self._bibfile = config["Bibfiles"][bibname]
+        self._config = config
         self._bib_path = None
-        self._bib_db = self._open_bib_db(bibfile)
-
-    def _open_bib_db(self, bibfile):
-        """Open the bibtex database"""
-        parser = BibTexParser()
-        parser.ignore_nonstandard_types = False
-
-        with open(bibfile) as bib_:
-            bib_db = bibtexparser.load(bib_, parser)
-
-        self._bib_path = os.path.dirname(bibfile)
-
-        return bib_db
+        self._bib_db = self._open_bib_db(self._bibfile)
+        self._sync_path = PurePath(config["Notes"]["folder"])
 
     def push_file_to_dpt(self, bibkey):
         """Push file given a bibkey"""
@@ -91,6 +83,43 @@ class DPTBibSync(object):
 
         with open(d_path, "rb") as fh:
             self._dpt.upload(fh, remote_path)
+
+    def sync_notes(self):
+        """Sync the notes from the DPT-RP1 to the computer"""
+        ensure_dir(self._sync_path)
+
+        all_notes = self._get_modified_notes(which="notes")
+
+        for doc in all_notes:
+            year = dateparser.parse(doc["created_date"]).year
+            f_name = doc["entry_name"]
+            ensure_dir(self._sync_path / str(year))
+            local_path = self._sync_path / str(year) / f_name
+            data = self._dpt.download(doc["entry_path"])
+            with open(local_path, "wb") as f:
+                f.write(data)
+
+    def sync_annotated_docs(self, with_notes=True):
+        """Sync annotated documents with their respective notes (if existent)
+
+        Parameters
+        ----------
+        with_notes : bool, optional
+
+        """
+        pass
+
+    def _open_bib_db(self, bibfile):
+        """Open the bibtex database"""
+        self._bib_path = os.path.dirname(bibfile)
+
+        parser = BibTexParser()
+        parser.ignore_nonstandard_types = False
+
+        with open(bibfile) as bib_:
+            bib_db = bibtexparser.load(bib_, parser)
+
+        return bib_db
 
     def _get_target_folder(self, bibkey):
         """Get the forlder where to save the document
@@ -187,6 +216,75 @@ class DPTBibSync(object):
 
         return e_type
 
+    def _get_modified_notes(self, which):
+        all_docs = self._dpt.list_documents()
+        notes_ = [d for d in all_docs if d["document_type"] == "note"]
+
+        notes = [n for n in notes_ if self._is_modified_note(n)]
+
+        if which == "notes":
+            notes = self._get_standalone_notes()
+        elif which == "docs":
+            notes = self._get_documents_notes()
+
+        return notes
+
+    def _get_annotated_docs(self):
+        all_docs = self._dpt.list_documents()
+        docs_ = [d for d in all_docs if d["document_type"] == "normal"]
+
+        docs = [d for d in docs_ if self._is_annotated_doc(d)]
+
+        return docs
+
+    def _get_documents(self):
+        all_docs = self._dpt.list_documents()
+        notes = [d for d in all_docs if d["document_type"] == "normal"]
+
+        return notes
+
+    def _is_modified_note(self, doc):
+        year = dateparser.parse(doc["created_date"]).year
+
+        if doc["document_type"] == "note":
+            local_path = (
+                self._sync_path / str(year) / os.path.basename(doc["entry_path"])
+            )
+            if not os.path.exists(local_path):
+                return True
+            else:
+                return (
+                    os.path.getmtime(local_path)
+                    < dateparser.parse(doc["modified_date"]).timestamp()
+                )
+
+    def _is_annotated_doc(self, doc):
+        created = dateparser.parse(doc["created_date"])
+        modified = dateparser.parse(doc["modified_date"])
+
+        if created < modified:
+            return True
+        else:
+            return False
+
+    def _get_standalone_notes(self, docs=None):
+        if docs == None:
+            all_docs = self._dpt.list_documents()
+            docs = [d for d in all_docs if d["document_type"] == "note"]
+
+        notes = [n for n in docs if os.path.dirname(n["entry_path"]) == "Document/Note"]
+
+        return notes
+
+    def _get_documents_notes(self, docs=None):
+        if docs == None:
+            all_docs = self._dpt.list_documents()
+            docs = [d for d in all_docs if d["document_type"] == "note"]
+
+        notes = [n for n in docs if os.path.dirname(n["entry_path"]) != "Document/Note"]
+
+        return notes
+
 
 def get_config_file(config=CONFIG_FILE):
     """Get configuration information"""
@@ -216,6 +314,7 @@ def init_config_file():
         "key": HOME / ".dpapp/privatekey.dat",
     }
     config["Bibfiles"] = {"default": ""}
+    config["Notes"] = {"folder": ""}
 
     with open(CONFIG_FILE, "w") as configfile:
         config.write(configfile)
