@@ -39,6 +39,7 @@ OUT_DEF = {
     },
 }
 
+
 class DPTBibSync(object):
 
     """Docstring for DPTbibSync. """
@@ -71,7 +72,6 @@ class DPTBibSync(object):
         self._bib_path = os.path.dirname(bibfile)
 
         return bib_db
-
 
     def push_file_to_dpt(self, bibkey):
         """Push file given a bibkey"""
@@ -110,12 +110,9 @@ class DPTBibSync(object):
         if self._bibname in [None, "default"]:
             t_folder = "Document/" + OUT_DEF[d_type]["out_folder"]
         else:
-            t_folder = (
-                "Document/" + self._bibname.capitalize()
-            )
+            t_folder = "Document/" + self._bibname.capitalize()
 
         return PurePath(t_folder)
-
 
     def _gen_file_name(self, bibkey):
         """TODO: Docstring for gen_file_name.
@@ -169,7 +166,6 @@ class DPTBibSync(object):
         file_path = file_entry[match.start() : match.end()]
 
         return PurePath(file_path)
-
 
     def _get_type_from_bibkey(self, bibkey):
         """Get the reference type associated to the bibkey
