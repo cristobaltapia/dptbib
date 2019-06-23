@@ -5,7 +5,7 @@ import os.path
 import re
 import unicodedata
 from os.path import expanduser
-from pathlib import Path
+from pathlib import Path, PurePath
 
 import bibtexparser
 import dateparser
@@ -38,6 +38,158 @@ OUT_DEF = {
         "out_name": [["year", "author", "title"]],
     },
 }
+
+class DPTBibSync(object):
+
+    """Docstring for DPTbibSync. """
+
+    def __init__(self, dpt, bibname, bibfile):
+        """TODO: to be defined1.
+
+        Parameters
+        ----------
+        dpt : TODO
+        bibname: TODO
+        bibfile : TODO
+
+
+        """
+        self._dpt = dpt
+        self._bibname = bibname
+        self._bibfile = bibfile
+        self._bib_path = None
+        self._bib_db = self._open_bib_db(bibfile)
+
+    def _open_bib_db(self, bibfile):
+        """Open the bibtex database"""
+        parser = BibTexParser()
+        parser.ignore_nonstandard_types = False
+
+        with open(bibfile) as bib_:
+            bib_db = bibtexparser.load(bib_, parser)
+
+        self._bib_path = os.path.dirname(bibfile)
+
+        return bib_db
+
+
+    def push_file_to_dpt(self, bibkey):
+        """Push file given a bibkey"""
+        bib_db = self._bib_db
+        bib_name = self._bibname
+
+        d_path = self._get_doc_from_bibkey(bibkey)
+
+        p_bib = self._bib_path
+        d_path = p_bib / d_path
+
+        target_folder = self._get_target_folder(bibkey)
+        name_file = self._gen_file_name(bibkey)
+        remote_path = target_folder / name_file
+
+        self._dpt.new_folder(target_folder)
+
+        with open(d_path, "rb") as fh:
+            self._dpt.upload(fh, remote_path)
+
+    def _get_target_folder(self, bibkey):
+        """Get the forlder where to save the document
+
+        Parameters
+        ----------
+        bibkey : TODO
+
+        Returns
+        -------
+        TODO
+
+        """
+        d_type = self._get_type_from_bibkey(bibkey)
+
+        # Define name of the target folder
+        if self._bibname in [None, "default"]:
+            t_folder = "Document/" + OUT_DEF[d_type]["out_folder"]
+        else:
+            t_folder = (
+                "Document/" + self._bibname.capitalize()
+            )
+
+        return PurePath(t_folder)
+
+
+    def _gen_file_name(self, bibkey):
+        """TODO: Docstring for gen_file_name.
+
+        Parameters
+        ----------
+        bibkey : TODO
+
+        Returns
+        -------
+        TODO
+
+        """
+        d_type = self._get_type_from_bibkey(bibkey)
+
+        # Define name of the target file
+        name_format = OUT_DEF[d_type]["out_name"]
+
+        entry = self._bib_db.entries_dict[bibkey]
+
+        # Define out folder
+        for struct in name_format:
+            try:
+                out_name = "".join(slugify(entry[ix]) + "_" for ix in struct)
+                break
+            except:
+                pass
+
+        return PurePath(out_name + ".pdf")
+
+    def _get_doc_from_bibkey(self, bibkey):
+        """Get the location of the pdf file, given the bibkey
+
+        Parameters
+        ----------
+        bib_db : `obj`:BibTexParser
+            BibTexParser object
+        key : str
+            Bibkey
+
+        Returns
+        -------
+        str :
+            File path
+
+        """
+        entry = self._bib_db.entries_dict[bibkey]
+        file_entry = entry["file"]
+        # Get only the path
+        match = re.search("(?<=:).*(?=:)", file_entry)
+        file_path = file_entry[match.start() : match.end()]
+
+        return PurePath(file_path)
+
+
+    def _get_type_from_bibkey(self, bibkey):
+        """Get the reference type associated to the bibkey
+
+        Parameters
+        ----------
+        bib_db : `obj`:BibTexParser
+        key : str
+            Bibkey
+
+        Returns
+        -------
+        str :
+            File path
+
+        """
+        entry = self._bib_db.entries_dict[bibkey]
+        e_type = entry["ENTRYTYPE"]
+
+        return e_type
 
 
 def get_config_file(config=CONFIG_FILE):
@@ -89,90 +241,6 @@ def connect_to_dpt(addr, dev_id, dev_key):
     return dpt
 
 
-def open_bib_db(bib_file):
-    """Open the bibtex database"""
-    parser = BibTexParser()
-    parser.ignore_nonstandard_types = False
-
-    with open(bib_file) as bib_:
-        bib_db = bibtexparser.load(bib_, parser)
-
-    return bib_db
-
-
-def get_doc_from_bibkey(bib_db, key):
-    """Get the location of the pdf file, given the bibkey
-
-    Parameters
-    ----------
-    bib_db : `obj`:BibTexParser
-        BibTexParser object
-    key : str
-        Bibkey
-
-    Returns
-    -------
-    str :
-        File path
-
-    """
-    entry = bib_db.entries_dict[key]
-    file_entry = entry["file"]
-    # Get only the path
-    match = re.search("(?<=:).*(?=:)", file_entry)
-    file_path = file_entry[match.start() : match.end()]
-
-    return file_path
-
-
-def get_type_from_bibkey(bib_db, key):
-    """Get the reference type associated to the bibkey
-
-    Parameters
-    ----------
-    bib_db : `obj`:BibTexParser
-    key : str
-        Bibkey
-
-    Returns
-    -------
-    str :
-        File path
-
-    """
-    entry = bib_db.entries_dict[key]
-    e_type = entry["ENTRYTYPE"]
-
-    return e_type
-
-
-def gen_file_name(bib_db, key, out_style):
-    """TODO: Docstring for gen_file_name.
-
-    Parameters
-    ----------
-    key : TODO
-    bib_db : TODO
-    out_style : TODO
-
-    Returns
-    -------
-    TODO
-
-    """
-    entry = bib_db.entries_dict[key]
-
-    # Define out folder
-    for struct in out_style:
-        try:
-            out_name = "".join(slugify(entry[ix]) + "_" for ix in struct)
-            break
-        except:
-            pass
-
-    return out_name + ".pdf"
-
-
 def ensure_dir(f):
     """look up for the directory 'f' and creates it if it doesn't exist."""
     if not os.path.exists(f):
@@ -189,34 +257,3 @@ def slugify(value):
     )
     value = re.sub(r"[^\w\s-]", "", value).strip().lower()
     return re.sub(r"[-\s]+", "-", value)
-
-
-def push_file_to_dpt(d, bibfile, bibkey, bib_name=None):
-    """Push file given a bibkey"""
-    bib_db = open_bib_db(bibfile)
-
-    d_path = get_doc_from_bibkey(bib_db, bibkey)
-    d_type = get_type_from_bibkey(bib_db, bibkey)
-
-    f_bib = os.path.dirname(bibfile)
-    d_path = f_bib + "/" + d_path
-
-    # Define name of the target folder
-    if bib_name in [None, "default"]:
-        t_folder = "Document/" + OUT_DEF[d_type]["out_folder"]
-    else:
-        t_folder = (
-            "Document/" + bib_name.capitalize()
-        )
-
-    # Define name of the target file
-    t_file = OUT_DEF[d_type]["out_name"]
-
-    name_file = gen_file_name(bib_db, bibkey, t_file)
-    remote_path = t_folder + "/" + name_file
-
-    print(t_folder)
-    d.new_folder(t_folder)
-
-    with open(d_path, "rb") as fh:
-        d.upload(fh, remote_path)

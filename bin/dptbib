@@ -3,51 +3,50 @@
 import configparser
 import os.path
 
-from dptbib.bib_utils import connect_to_dpt, get_config_file, push_file_to_dpt
+from dptbib.bib_utils import DPTBibSync, connect_to_dpt, get_config_file
 
 
-def do_push_file(d, bib_name, bibkey):
+def do_push_file(dbsync, bibkey):
     """Push file given a bibkey"""
-    bibfile = CONFIG["Bibfiles"][bib_name]
-    push_file_to_dpt(d, bibfile, bibkey, bib_name)
+    dbsync.push_file_to_dpt(bibkey)
 
 
-def do_pull_file(d, bibfile, bibkey):
+def do_pull_file(dbsync, bibkey):
     """Pull file given a bibkey"""
     pass
 
 
-def do_push_group(d, bibfile, group):
+def do_push_group(dbsync, group):
     """Push files corresponfing to a group"""
     pass
 
 
-def do_sync_notes(d, config):
+def do_sync_notes(dbsync):
     """Sync notes from dpt-rp1"""
     pass
 
 
-def do_del_group(d, config, bibfile, group):
+def do_del_group(dbsync, group):
     """Delete files from dpt-rp1 corresponding to a given group"""
     pass
 
 
-def doc_has_note(d, doc):
+def doc_has_note(dbsync, doc):
     """Check if document has an associated note"""
     pass
 
 
-def _is_modified(d, doc):
+def _is_modified(dbsync, doc):
     """Check whether a document has been modified"""
     pass
 
 
-def note_modified(d, doc):
-    return _is_modified(d, doc)
+def note_modified(dbsync, doc):
+    return _is_modified(dbsync, doc)
 
 
-def doc_modified(d, doc):
-    return _is_modified(d, doc)
+def doc_modified(dbsync, doc):
+    return _is_modified(dbsync, doc)
 
 
 if __name__ == "__main__":
@@ -86,6 +85,8 @@ if __name__ == "__main__":
     else:
         BIB_NAME = "default"
 
+    BIB_FILE = CONFIG["Bibfiles"][BIB_NAME]
+
     try:
         DPT = connect_to_dpt(DPT_ADDR, DPT_ID, DPT_KEY)
 
@@ -95,4 +96,6 @@ if __name__ == "__main__":
         )
         exit(1)
 
-    COMMANDS[ARGS.command](DPT, BIB_NAME, *ARGS.command_args)
+    DPT_BIB_SYNC = DPTBibSync(DPT, BIB_NAME, BIB_FILE)
+
+    COMMANDS[ARGS.command](DPT_BIB_SYNC, *ARGS.command_args)
