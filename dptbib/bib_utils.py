@@ -78,7 +78,7 @@ class DPTBibSync(object):
 
         target_folder = self._get_target_folder(bibkey)
         name_file = self._gen_file_name(bibkey)
-        remote_path = target_folder / name_file
+        remote_path = str(target_folder / name_file)
 
         self._dpt.new_folder(target_folder)
 
@@ -125,6 +125,7 @@ class DPTBibSync(object):
 
         parser = BibTexParser()
         parser.ignore_nonstandard_types = False
+        parser.homogenize_fields = True
 
         with open(bibfile) as bib_:
             bib_db = bibtexparser.load(bib_, parser)
